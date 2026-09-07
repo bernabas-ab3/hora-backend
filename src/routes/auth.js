@@ -36,7 +36,7 @@ router.post('/login', async (req, res, next) => {
     const schemaResult = await pool.query(
       `SELECT column_name
        FROM information_schema.columns
-       WHERE table_schema = current_schema() AND table_name = 'users'`
+       WHERE table_schema = 'public' AND table_name = 'users'`
     );
     const columns = schemaResult.rows.map((row) => row.column_name);
     const selected = Object.fromEntries(
@@ -48,7 +48,7 @@ router.post('/login', async (req, res, next) => {
     }
 
     const query = `SELECT ${Object.values(selected).map(quoteIdentifier).join(', ')}
-      FROM ${quoteIdentifier('users')}
+      FROM ${quoteIdentifier('public')}.${quoteIdentifier('users')}
       WHERE ${quoteIdentifier(selected.username)} = $1
       LIMIT 1`;
     const result = await pool.query(query, [username]);
@@ -72,6 +72,10 @@ router.post('/login', async (req, res, next) => {
 
     return res.json({ token, user: responseUser });
   } catch (error) {
+    console.error('[auth/login] database authentication error:', {
+      code: error.code,
+      message: error.message
+    });
     return next(error);
   }
 });

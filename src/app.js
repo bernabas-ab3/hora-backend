@@ -34,10 +34,15 @@ app.use((req, res) => {
 });
 
 app.use((err, req, res, next) => {
-  console.error(err.message);
   if (err instanceof SyntaxError && err.status === 400 && err.type === 'entity.parse.failed') {
     return res.status(400).json({ error: 'Invalid JSON' });
   }
+  console.error('[http/error]', {
+    path: req.path,
+    method: req.method,
+    code: err.code,
+    message: err.message
+  });
   res.status(500).json({
     error: 'Internal server error'
   });
