@@ -5,20 +5,8 @@ const pool = require('../db/pool');
 
 const router = express.Router();
 
-const columnAliases = {
-  userId: ['user_id', 'id'],
-  username: ['username', 'user_name'],
-  password: ['password_hash', 'password', 'password_digest'],
-  fullName: ['full_name', 'fullname', 'name'],
-  role: ['role']
-};
-
 function quoteIdentifier(identifier) {
   return `"${identifier.replace(/"/g, '""')}"`;
-}
-
-function findColumn(columns, aliases) {
-  return aliases.find((alias) => columns.includes(alias));
 }
 
 router.post('/login', async (req, res, next) => {
@@ -39,30 +27,28 @@ router.post('/login', async (req, res, next) => {
        WHERE table_schema = 'public' AND table_name = 'users'`
     );
     const columns = schemaResult.rows.map((row) => row.column_name);
-    const selected = Object.fromEntries(
-      Object.entries(columnAliases).map(([key, aliases]) => [key, findColumn(columns, aliases)])
-    );
+    const requiredColumns = ['user_id', 'username', 'password_hash', 'full_name', 'role'];
 
-    if (Object.values(selected).some((column) => !column)) {
+    if (requiredColumns.some((column) => !columns.includes(column))) {
       return res.status(500).json({ error: 'Users table is missing required authentication columns' });
     }
 
-    const query = `SELECT ${Object.values(selected).map(quoteIdentifier).join(', ')}
+    const query = `SELECT ${requiredColumns.map(quoteIdentifier).join(', ')}
       FROM ${quoteIdentifier('public')}.${quoteIdentifier('users')}
-      WHERE ${quoteIdentifier(selected.username)} = $1
+      WHERE ${quoteIdentifier('username')} = $1
       LIMIT 1`;
     const result = await pool.query(query, [username]);
     const user = result.rows[0];
 
-    if (!user || !(await bcrypt.compare(password, user[selected.password]))) {
+    if (!user || !(await bcrypt.compare(password, user.password_hash))) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     const responseUser = {
-      user_id: user[selected.userId],
-      username: user[selected.username],
-      full_name: user[selected.fullName],
-      role: user[selected.role]
+      user_id: user.user_id,
+      username: user.username,
+      full_name: user.full_name,
+      role: user.role
     };
     const token = jwt.sign(
       { user_id: responseUser.user_id, username: responseUser.username, role: responseUser.role },

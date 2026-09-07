@@ -16,11 +16,21 @@ app.use(express.json());
 
 app.use('/api/auth', authRouter);
 
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    timestamp: new Date().toISOString()
-  });
+app.get('/api/health', async (req, res) => {
+  const timestamp = new Date().toISOString();
+
+  if (!process.env.DATABASE_URL) {
+    return res.status(503).json({ status: 'degraded', database: 'not_configured', timestamp });
+  }
+
+  try {
+    const pool = require('./db/pool');
+    await pool.query('SELECT 1');
+    return res.json({ status: 'ok', database: 'connected', timestamp });
+  } catch (error) {
+    console.error('[health] database check failed:', { code: error.code, message: error.message });
+    return res.status(503).json({ status: 'degraded', database: 'unavailable', timestamp });
+  }
 });
 
 app.get('/api/services', (req, res) => {
